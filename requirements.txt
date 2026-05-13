@@ -1,0 +1,37 @@
+# AgentGuard — Runtime Integrity Monitor for LLM Agent Execution Chains
+# Author: Vignesh Chandrasekaran (@bb1nfosec)
+#
+# Install all dependencies:
+#   pip install -r requirements.txt
+#
+# Core only (no semantic engine):
+#   No external dependencies — uses Python stdlib only
+#   (hashlib, hmac, re, uuid, json, time, dataclasses)
+#
+# Full install (recommended — enables semantic drift detection):
+#   pip install -r requirements.txt
+
+# ── Semantic Drift Detection (Layer 3) ────────────────────
+# Sentence embedding model for cosine similarity checks
+# Model used: all-MiniLM-L6-v2 (~80MB, auto-downloaded on first run)
+sentence-transformers>=2.2.0
+
+# PyTorch backend for sentence-transformers
+# CPU-only build — swap for torch+cu118 if running on GPU
+torch>=2.0.0
+
+# ── Utilities ─────────────────────────────────────────────
+# numpy is pulled in by torch/sentence-transformers
+# listed explicitly for clarity
+numpy>=1.24.0
+
+# ── Optional: Dev & Testing ───────────────────────────────
+# Uncomment if running tests or contributing
+# pytest>=7.4.0
+# pytest-cov>=4.1.0
+
+# ── Python Version ────────────────────────────────────────
+# Requires Python 3.10+ (uses match/case-compatible type hints)
+# Tested on: 3.10, 3.11, 3.12
+
+
