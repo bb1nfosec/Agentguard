@@ -397,4 +397,3 @@ MIT License — use freely, attribution appreciated.
 
 Issues, pattern contributions, and integration PRs welcome.
 If you find a bypass for any of the three detection layers — open an issue. That's the whole point.
-
