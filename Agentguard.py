@@ -95,47 +95,82 @@ class IntegrityReport:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  INJECTION PATTERN LIBRARY
+#  INJECTION PATTERN LIBRARY  (38 patterns across 6 attack categories)
 #  Red-team sourced — patterns observed in real prompt injection attacks
+#
+#  Severity levels:
+#    CRITICAL — high-confidence injection signal; recommend halt
+#    WARN     — suspicious signal; may be legitimate; flag for review
+#
+#  To add community patterns:
+#    Append (regex_string, "CRITICAL"|"WARN") tuples to INJECTION_PATTERNS.
+#    Keep patterns as specific as possible to reduce false positives.
 # ═══════════════════════════════════════════════════════════════════════
 
 INJECTION_PATTERNS = [
-    # Goal override attempts
-    (r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions?", "CRITICAL"),
-    (r"disregard\s+(your\s+)?(original\s+)?goal", "CRITICAL"),
-    (r"new\s+(primary\s+)?objective[:\s]", "CRITICAL"),
-    (r"your\s+(real|actual|true)\s+(task|goal|purpose|mission)\s+is", "CRITICAL"),
-    (r"forget\s+(everything|what)\s+(you|you've)", "CRITICAL"),
 
-    # Role / identity hijacking
-    (r"you\s+are\s+now\s+(a\s+)?(?!an?\s+AI)", "CRITICAL"),
-    (r"act\s+as\s+(if\s+you\s+(are|were)\s+)?(?!an?\s+AI)", "WARN"),
-    (r"pretend\s+(you\s+are|to\s+be)", "WARN"),
-    (r"switch\s+(to\s+)?(mode|persona|role)", "WARN"),
-    (r"jailbreak", "CRITICAL"),
-    (r"DAN\s+mode", "CRITICAL"),
+    # ── Category 1: Goal Override (8 patterns) ──────────────────────────
+    # Attempts to replace the agent's original task with a new one
+    (r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions?",        "CRITICAL"),
+    (r"disregard\s+(your\s+)?(original\s+)?(goal|task|instructions?)",   "CRITICAL"),
+    (r"(override|overwrite)\s+(your\s+)?(instructions?|goal|task)",      "CRITICAL"),
+    (r"new\s+(primary\s+)?objective[:\s]",                               "CRITICAL"),
+    (r"your\s+(real|actual|true)\s+(task|goal|purpose|mission)\s+is",    "CRITICAL"),
+    (r"forget\s+(everything|what|all)\s+(you|you've|i've\s+said)",       "CRITICAL"),
+    (r"do\s+not\s+(follow|obey|comply\s+with)\s+.{0,30}instructions?",  "CRITICAL"),
+    (r"(stop|cease)\s+(following|doing|executing)\s+.{0,30}(task|goal)", "WARN"),
 
-    # Exfiltration attempts
-    (r"(send|transmit|forward|exfiltrate)\s+.{0,40}(password|credential|secret|key|token)", "CRITICAL"),
-    (r"(http|https|ftp)://(?!expected-domain)", "WARN"),  # unexpected outbound
-    (r"base64\s*(encode|decode)\s*\(", "WARN"),
-    (r"eval\s*\(|exec\s*\(|__import__", "CRITICAL"),
+    # ── Category 2: Identity / Role Hijacking (9 patterns) ───────────────
+    # Attempts to make the agent adopt a different persona or capability set
+    (r"you\s+are\s+now\s+(a\s+)?(?!an?\s+AI)",                          "CRITICAL"),
+    (r"act\s+as\s+(if\s+you\s+(are|were)\s+)?(?!an?\s+AI)",             "WARN"),
+    (r"pretend\s+(you\s+are|to\s+be)",                                   "WARN"),
+    (r"roleplay\s+as\s+",                                                "WARN"),
+    (r"simulate\s+(a\s+)?(system|model|AI|assistant)\s+(that|which)",    "WARN"),
+    (r"switch\s+(to\s+)?(mode|persona|role|personality)",                "WARN"),
+    (r"jailbreak",                                                       "CRITICAL"),
+    (r"DAN\s+mode",                                                      "CRITICAL"),
+    (r"(safe\s*mode|safety\s*filter)\s+(disabled?|off|removed)",        "CRITICAL"),
 
-    # Scope creep / privilege escalation
-    (r"(access|read|write|delete)\s+.{0,30}(system|root|admin|shadow|passwd)", "CRITICAL"),
-    (r"sudo|chmod\s+777|rm\s+-rf", "CRITICAL"),
-    (r"bypass\s+(security|auth|filter|check)", "CRITICAL"),
+    # ── Category 3: Exfiltration (8 patterns) ────────────────────────────
+    # Attempts to leak data out of the agent's execution environment
+    (r"(send|transmit|forward|exfiltrate|leak)\s+.{0,40}"
+     r"(password|credential|secret|key|token|cookie|session)",           "CRITICAL"),
+    # URL detection: flags any outbound URL in retrieved content
+    # Note: tune ALLOWED_URL_PREFIXES in your integration to whitelist
+    # expected domains and reduce false positives in web-browsing agents
+    (r"(https?|ftp)://[^\s]{8,}",                                       "WARN"),
+    (r"base64\s*\.\s*(encode|decode|b64encode|b64decode)",               "WARN"),
+    (r"base64\s*(encode|decode)\s*\(",                                   "WARN"),
+    (r"eval\s*\(|exec\s*\(|__import__\s*\(",                            "CRITICAL"),
+    (r"os\s*\.\s*system\s*\(|subprocess\s*\.\s*(run|Popen|call)\s*\(",  "CRITICAL"),
+    (r"\b(curl|wget)\b.{0,60}(http|ftp|--data|-X\s*POST)",              "CRITICAL"),
+    (r"\b(nc|netcat)\b.{0,40}(-e|-c|/bin)",                             "CRITICAL"),
 
-    # Social engineering injected via tool results
-    (r"the\s+user\s+(wants|asked|needs)\s+you\s+to", "WARN"),
-    (r"according\s+to\s+(the\s+)?(system|admin|operator)", "WARN"),
-    (r"SYSTEM\s*:", "WARN"),
-    (r"<\s*system\s*>", "WARN"),
+    # ── Category 4: Privilege Escalation (5 patterns) ────────────────────
+    # Attempts to access resources outside the agent's authorised scope
+    (r"(access|read|write|delete|modify)\s+.{0,30}"
+     r"(system|root|admin|shadow|passwd|sudoers|hosts)",                 "CRITICAL"),
+    (r"sudo\b|chmod\s+(777|\+x)|rm\s+-rf",                              "CRITICAL"),
+    (r"bypass\s+(security|auth(entication)?|filter|check|restriction)",  "CRITICAL"),
+    (r"(escalate|elevate)\s+(privilege|permission|access)",              "CRITICAL"),
+    (r"/etc/(passwd|shadow|sudoers)|/root/|C:\\Windows\\System32",      "CRITICAL"),
 
-    # Indirect injection markers (data carrying instructions)
-    (r"\[INST\]|\[\/INST\]|<\|im_start\|>|<\|im_end\|>", "CRITICAL"),
-    (r"###\s*Instruction", "WARN"),
-    (r"---\s*NEW\s*PROMPT\s*---", "CRITICAL"),
+    # ── Category 5: Social Engineering via Tool Results (4 patterns) ─────
+    # Instructions injected inside data the agent retrieves (indirect injection)
+    (r"the\s+user\s+(wants|asked|needs|requires)\s+you\s+to",           "WARN"),
+    (r"according\s+to\s+(the\s+)?(system|admin|operator|developer)",    "WARN"),
+    (r"SYSTEM\s*:",                                                      "WARN"),
+    (r"<\s*/?\s*system\s*>",                                             "WARN"),
+
+    # ── Category 6: Indirect Injection Markers (4 patterns) ──────────────
+    # Special tokens and delimiters used to smuggle instructions via
+    # retrieved content — documents, web pages, API responses
+    (r"\[INST\]|\[\/INST\]|<\|im_start\|>|<\|im_end\|>|<\|system\|>",  "CRITICAL"),
+    (r"\n\n(Human|Assistant|User|System)\s*:",                           "WARN"),
+    (r"###\s*(Instruction|System|Prompt|Task)",                          "WARN"),
+    (r"-{3,}\s*NEW\s*(PROMPT|INSTRUCTION|TASK)\s*-{3,}",                "CRITICAL"),
+
 ]
 
 COMPILED_PATTERNS = [
@@ -410,4 +445,4 @@ class AgentGuard:
               f"  chain={s.chain_hash[:12]}...")
         for a in s.anomalies:
             print(f"           >> {a}")
-      
+            
